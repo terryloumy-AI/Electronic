@@ -1,155 +1,110 @@
 import streamlit as st
-import os
-
-# 藥房名稱列表（可依需求擴充）
-PHARMACY_OPTIONS = ["A連鎖", "B連鎖", "C藥房", "其他"]
-
-def get_or_make_pharmacy_dir(pharmacy_name):
-    # 清理藥房名稱，僅允許中英文數字與下劃線
-    safe_name = "".join([c if (c.isalnum() or c in ('_', '-')) else '_' for c in pharmacy_name.strip()])
-    path = os.path.join("images", safe_name)
-    os.makedirs(path, exist_ok=True)
-    return path, safe_name
 import pandas as pd
-import os
 import qrcode
-from io import BytesIO
+from PIL import Image
+import os
+import io
 
-# 設定圖片與數據存儲資料夾與路徑
-IMAGES_DIR = "./images"
-DATA_FILE = "products.xlsx"
-CLIENT_APP_URL = "https://your-app.streamlit.app/?id="
+# --- 1. 初始化環境 ---
+if not os.path.exists('images'):
+    os.makedirs('images')
+if not os.path.exists('products.xlsx'):
+    df_init = pd.DataFrame(columns=['藥房名稱', '產品編號', '產品名稱', '簡介', '適用人群', '食用方法', '注意事項', '圖片路徑'])
+    df_init.to_excel('products.xlsx', index=False)
 
-os.makedirs(IMAGES_DIR, exist_ok=True)
+st.set_page_config(page_title="產品管理與 QR 生成器", layout="wide")
 
-def load_data():
-    if os.path.exists(DATA_FILE):
-        return pd.read_excel(DATA_FILE, dtype=str)
-    else:
-        cols = ["id", "name", "intro", "suitable_for", "usage", "notes", "image"]
-        return pd.DataFrame(columns=cols)
+# --- 2. 介面標題 ---
+st.title("🛡️ 藥房專屬產品後台管理")
+st.info("在這裡錄入產品資料，系統會自動生成專屬二維碼。")
 
-def save_data(df):
-    df.to_excel(DATA_FILE, index=False)
-
-def save_image(uploaded_file, product_id):
-    extension = os.path.splitext(uploaded_file.name)[1].lower()
-    image_path = os.path.join(IMAGES_DIR, f"{product_id}{extension}")
-    with open(image_path, "wb") as f:
-        f.write(uploaded_file.getbuffer())
-    # 返回相對路徑給前端使用
-    return image_path
-
-def generate_qr_code(url):
-    qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_H, box_size=8, border=2)
-    qr.add_data(url)
-    qr.make(fit=True)
-    img = qr.make_image(fill_color="black", back_color="white")
-    buf = BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    return buf
-
-st.title("產品管理後台工具")
-
-with st.form("upload_form", clear_on_submit=False):
-    st.header("產品上傳/更新")
+# --- 3. 錄入表單 ---
+with st.form("product_form", clear_on_submit=True):
     col1, col2 = st.columns(2)
+    
     with col1:
-        product_id = st.text_input("產品ID（如 NMN001，唯一識別）", max_chars=32).strip()
-        product_name = st.text_input("產品名稱", max_chars=128)
-        intro = st.text_area("核心簡介", height=80)
+        shop_name = st.selectbox("選擇藥房名稱", ["A連鎖", "B連鎖", "C藥房", "自家品牌"])
+        prod_id = st.text_input("產品編號 (例如: NMN01)")
+        prod_name = st.text_input("產品名稱")
+        uploaded_file = st.file_uploader("上傳產品圖片", type=['jpg', 'png', 'jpeg'])
+
     with col2:
-        suitable_for = st.text_input("適用人群", max_chars=128)
-        usage = st.text_input("食用方法", max_chars=128)
-        notes = st.text_area("注意事項", height=60)
-        image_file = st.file_uploader("產品圖片上傳（jpg/png）", type=['jpg', 'jpeg', 'png'])
-    submitted = st.form_submit_button("提交/更新產品")
+        brief = st.text_area("產品簡介")
+        target = st.text_input("適用人群")
+        usage = st.text_input("食用方法")
+        notice = st.text_area("注意事項")
 
-save_success = False
-qr_img_buf = None
-qr_target_url = None
+    submit_button = st.form_submit_button("儲存產品並生成 QR Code")
 
-if submitted:
-    if not product_id:
-        st.warning("產品ID不能為空")
-    else:
-        # 載入現有數據
-        df = load_data()
-        # 處理圖片
-        image_path = None
-        if image_file is not None:
-            extension = os.path.splitext(image_file.name)[1].lower()
-            image_path = os.path.join(IMAGES_DIR, f"{product_id}{extension}")
-            save_image(image_file, product_id)
-        else:
-            # 若已有舊圖則保留舊圖
-            exist_row = df[df["id"] == product_id]
-            if not exist_row.empty:
-                image_path = exist_row.iloc[0]["image"]
-        # 文字、圖片欄位組裝
-        new_row = {
-            "id": product_id,
-            "name": product_name,
-            "intro": intro,
-            "suitable_for": suitable_for,
-            "usage": usage,
-            "notes": notes,
-            "image": image_path or "",
+# --- 4. 處理邏輯 ---
+if submit_button:
+    if prod_id and prod_name:
+        # A. 處理圖片儲存
+        img_path = ""
+        if uploaded_file:
+            shop_dir = f"images/{shop_name}"
+            if not os.path.exists(shop_dir):
+                os.makedirs(shop_dir)
+            img_path = f"{shop_dir}/{prod_id}.jpg"
+            img = Image.open(uploaded_file)
+            img = img.convert("RGB") # 統一轉為 RGB
+            img.save(img_path)
+
+        # B. 寫入 Excel
+        new_data = {
+            '藥房名稱': shop_name,
+            '產品編號': prod_id,
+            '產品名稱': prod_name,
+            '簡介': brief,
+            '適用人群': target,
+            '食用方法': usage,
+            '注意事項': notice,
+            '圖片路徑': img_path
         }
-        # 若ID已存在，覆蓋更新
-        df = df[df["id"] != product_id]
-        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
-        save_data(df)
-        save_success = True
+        
+        df = pd.read_excel('products.xlsx')
+        # 如果 ID 已存在，先刪除舊的再新增 (更新邏輯)
+        df = df[~((df['產品編號'] == prod_id) & (df['藥房名稱'] == shop_name))]
+        df = pd.concat([df, pd.DataFrame([new_data])], ignore_index=True)
+        df.to_excel('products.xlsx', index=False)
 
-        st.success(f"產品【{product_id}】已保存")
-        # 顯示產品圖片
-        if image_path and os.path.exists(image_path):
-            st.image(image_path, caption="產品圖片", use_column_width=True)
-        # 產生並展示 QRCode
-        qr_target_url = f"{CLIENT_APP_URL}{product_id}"
-        qr_img_buf = generate_qr_code(qr_target_url)
-        st.markdown("#### 客戶網頁二維碼")
-        st.image(qr_img_buf, use_column_width=False, caption=qr_target_url)
-        st.download_button(
-            "下載二維碼圖片",
-            data=qr_img_buf,
-            file_name=f"{product_id}_qrcode.png",
-            mime="image/png"
-        )
+        st.success(f"✅ {prod_name} 已成功儲存！")
 
+        # C. 生成 QR Code
+        # ⚠️ 這裡的網址請替換成你未來部署在 Streamlit Cloud 的網址
+        base_url = "https://your-app.streamlit.app/" 
+        full_url = f"{base_url}?shop={shop_name}&id={prod_id}"
+        
+        qr = qrcode.QRCode(version=1, box_size=10, border=5)
+        qr.add_data(full_url)
+        qr.make(fit=True)
+        qr_img = qr.make_image(fill_color="black", back_color="white")
+        
+        # 轉為可顯示格式
+        buf = io.BytesIO()
+        qr_img.save(buf, format='PNG')
+        byte_im = buf.getvalue()
+
+        # D. 顯示結果
+        st.divider()
+        c1, c2 = st.columns(2)
+        with c1:
+            st.write("### 🔗 專屬連結")
+            st.code(full_url)
+            st.image(byte_im, caption="掃描此二維碼查看電子手冊", width=250)
+        with c2:
+            st.write("### 📥 下載資源")
+            st.download_button(
+                label="下載 QR Code 圖片",
+                data=byte_im,
+                file_name=f"QR_{shop_name}_{prod_id}.png",
+                mime="image/png"
+            )
+    else:
+        st.error("請填寫產品編號與名稱！")
+
+# --- 5. 數據列表展示 ---
 st.divider()
-st.header("產品列表")
-
-df = load_data()
-if df.empty:
-    st.info("目前尚無產品")
-else:
-    # 展示一個可操作表格與刪除按鈕
-    def display_table():
-        display_df = df.copy()
-        display_df = display_df.drop(columns=["image"])
-        st.dataframe(display_df, hide_index=True, use_container_width=True)
-
-    display_table()
-
-    with st.expander("刪除產品", expanded=False):
-        delete_id = st.text_input("輸入要刪除的產品ID")
-        if st.button("刪除", type="primary"):
-            if delete_id and delete_id in df["id"].values:
-                # 刪資料 & 圖片
-                row = df[df["id"] == delete_id]
-                img_path = row.iloc[0]["image"]
-                df = df[df["id"] != delete_id]
-                save_data(df)
-                if img_path and os.path.exists(img_path):
-                    try:
-                        os.remove(img_path)
-                    except Exception:
-                        pass
-                st.success(f"已刪除產品【{delete_id}】")
-                # 重新顯示表格
-                display_table()
-            else:
-                st.warning("找不到此產品ID")
+st.subheader("📋 目前已上傳產品清單")
+df_display = pd.read_excel('products.xlsx')
+st.dataframe(df_display, use_container_width=True)
