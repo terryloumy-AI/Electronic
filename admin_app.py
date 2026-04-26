@@ -38,7 +38,7 @@ with st.form("product_form", clear_on_submit=True):
     col1, col2 = st.columns(2)
     
     with col1:
-        shop_name = st.selectbox("選擇藥房名稱", ["A連鎖", "B連鎖", "C藥房", "自家品牌"])
+        shop_name = st.selectbox("選擇藥房名稱", ["淳溢澤永連鎖藥房", "宏利藥房", "濟仁藥房", "民生藥房", "鼎泰藥房", "眾安藥房", "萬合藥房", "自家品牌"])
         prod_id = st.text_input("產品編號 (例如: NMN01)")
         prod_name = st.text_input("產品名稱")
         uploaded_file = st.file_uploader("上傳產品圖片", type=['jpg', 'png', 'jpeg'])
@@ -87,7 +87,7 @@ if submit_button:
 
         # C. 生成 QR Code
         # ⚠️ 這裡的網址請替換成你未來部署在 Streamlit Cloud 的網址
-        base_url = "https://your-app.streamlit.app/" 
+        base_url = "https://github.com/terryloumy-AI/Electronic.git" 
         full_url = f"{base_url}?shop={shop_name}&id={prod_id}"
         
         qr = qrcode.QRCode(version=1, box_size=10, border=5)
