@@ -42,7 +42,7 @@ def load_products(filepath="products.xlsx"):
     return pd.read_excel(filepath)
 
 def get_query_params():
-    query_params = st.experimental_get_query_params()
+    query_params = st.query_params
     if 'id' in query_params and query_params['id']:
         return query_params['id'][0]
     return None
