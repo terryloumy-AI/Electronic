@@ -1,6 +1,12 @@
 import streamlit as st
 import os
 import pandas as pd
+# 在 client_app.py 中獲取網址參數的穩定寫法
+
+# 由於 st.query_params 可能不存在於部分舊 Streamlit，改用 st.experimental_get_query_params 做兼容
+_params = st.query_params if hasattr(st, "query_params") else st.experimental_get_query_params()
+shop_param = _params.get("shop", ["預設藥房"])[0]
+id_param = _params.get("id", [""])[0]
 
 def get_query_params():
     # 讀取網址上的 query string (支援 shop, id)
@@ -141,7 +147,7 @@ def main():
             st.error("無法讀取產品資料 (products.xlsx)")
             return
 
-        product_row = df[df['id'] == id_param]
+        product_row = df[df['產品編號'] == id_param]
         if not product_row.empty:
             product = product_row.iloc[0]
             display_product(product)
