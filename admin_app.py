@@ -87,7 +87,7 @@ if submit_button:
 
         # C. 生成 QR Code
         # ⚠️ 這裡的網址請替換成你未來部署在 Streamlit Cloud 的網址
-        base_url = "https://github.com/terryloumy-AI/Electronic.git" 
+        base_url = "https://electronic-i9.streamlit.app/" 
         full_url = f"{base_url}?shop={shop_name}&id={prod_id}"
         
         qr = qrcode.QRCode(version=1, box_size=10, border=5)
