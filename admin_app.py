@@ -4,6 +4,21 @@ import qrcode
 from PIL import Image
 import os
 import io
+# --- 登入驗證 ---
+if "admin_authed" not in st.session_state:
+    st.session_state["admin_authed"] = False
+
+if not st.session_state["admin_authed"]:
+    with st.form("login_form", clear_on_submit=True):
+        pwd = st.text_input("請輸入管理密碼", type="password")
+        login_submit = st.form_submit_button("登入")
+        if login_submit:
+            if pwd == "a123456":
+                st.session_state["admin_authed"] = True
+            else:
+                st.error("請輸入正確的管理密碼以繼續")
+    # 阻止往下執行，直到驗證通過
+    st.stop()
 
 # --- 1. 初始化環境 ---
 if not os.path.exists('images'):
